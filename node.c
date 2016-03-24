@@ -12,13 +12,13 @@ void nn_node_printf(struct nn_node *node){
 	
 	printf("node: %d\n", node->id);
 	printf("\toutput: %f\n", node->output);
-	printf("\tndelta: %f\n", node->ndelta);
+	printf("\tgradient: %f\n", node->gradient);
 	printf("\tinput_total: %f\n", node->input_total);
 	
 	printf("\tinputs: %d\n", node->nr_inputs);
-	if(node->nr_inputs != 0) printf("\t\tbias: weight = %f, prev_weight = %f\n", node->inputs[0].weight, node->inputs[0].prev_weight);
+	if(node->nr_inputs != 0) printf("\t\tbias: weight = %f, delta_weight = %f\n", node->inputs[0].weight, node->inputs[0].delta_weight);
 	for(i = 1; i < node->nr_inputs; i++){
-		printf("\t\tid = %d: weight = %f, prev_weight = %f\n", node->inputs[i].node->id, node->inputs[i].weight, node->inputs[i].prev_weight);
+		printf("\t\tid = %d: weight = %f, delta_weight = %f\n", node->inputs[i].node->id, node->inputs[i].weight, node->inputs[i].delta_weight);
 	}
 	
 	printf("\toutputs: %d\n", node->nr_out_nodes);
@@ -65,7 +65,7 @@ int nn_node_alloc(int id, int nr_inputs, int nr_out_nodes, nn_transfer_fn *tfn, 
 	
 	node->id = id;
 	node->output = 0;
-	node->ndelta = 0;
+	node->gradient = 0;
 	node->input_total = 0;
 	node->nr_inputs = 0;
 	node->nr_out_nodes = 0;
@@ -98,7 +98,7 @@ void nn_node_init_bias(struct nn_node *node, double weight_ul, double weight_ll)
 	
 	node->inputs[0].node = NULL;
 	node->inputs[0].weight = weight;
-	node->inputs[0].prev_weight = weight;
+	node->inputs[0].delta_weight = 0;
 	node->nr_inputs++;
 }
 
@@ -108,7 +108,7 @@ void nn_node_init_connection(struct nn_node *in_node, struct nn_node *out_node, 
 	double weight = generate_weight(weight_ul, weight_ll);
 	
 	input->weight = weight;
-	input->prev_weight = weight;
+	input->delta_weight = 0;
 	input->node = in_node;
 	out_node->nr_inputs++;
 	
@@ -128,37 +128,27 @@ void nn_node_process(struct nn_node *node){
 	node->output = node->transfer_fn(node->input_total);
 }
 
-void nn_node_calculate_output_ndelta(struct nn_node *node, double expected){
-	double error = (node->output - expected);
-	//double error = (expected - node->output) * (expected - node->output);
-	node->ndelta = error * node->transfer_derivative_fn(node->input_total);
-	//printf("output ndelta: output = %f, expected = %f, f'(%f) = %f -> ndelta = %f\n", node->output, expected, node->input_total, node->transfer_derivative_fn(node->input_total), node->ndelta);
+void nn_node_calculate_output_gradient(struct nn_node *node, double expected){
+	node->gradient = (expected - node->output) * node->transfer_derivative_fn(node->output);
 }
 
-void nn_node_calculate_ndelta(struct nn_node *node){
+void nn_node_calculate_gradient(struct nn_node *node){
 	int i;
-	double tmp = 0;
+	double sum = 0;
 	
 	for(i = 0; i < node->nr_out_nodes; i++){
-		tmp += node->out_nodes[i].input->weight * node->out_nodes[i].node->ndelta;
+		sum += node->out_nodes[i].input->weight * node->out_nodes[i].node->gradient;
 	}
-	
-	node->ndelta = tmp * node->transfer_derivative_fn(node->input_total);
-	//printf("ndelta: tmp = %f -> ndelta = %f\n", tmp, node->ndelta);
+	node->gradient = sum * node->transfer_derivative_fn(node->output);
 }
 
-void nn_node_recalculate_weights(struct nn_node *node, double lr, double momentum){
+void nn_node_recalculate_weights(struct nn_node *node, double learning_rate, double momentum){
 	int i;
-	double gradient, input_value, weight_delta;
+	double input_value;
 	
-	//printf("weights:\n");
 	for(i = 0; i < node->nr_inputs; i++){
-		input_value = (i == 0) ? 1 : node->inputs[i].node->output;
-		gradient = input_value * node->ndelta;
-		weight_delta = lr * gradient + momentum * (node->inputs[i].weight - node->inputs[i].prev_weight);
-
-		//printf("\tinput = %f, gradient = %f, prev_wd = %f, weight_delta = %f -> weight = %f\n", input_value, gradient, (node->inputs[i].weight - node->inputs[i].prev_weight), weight_delta, node->inputs[i].weight);
-		node->inputs[i].prev_weight = node->inputs[i].weight;
-		node->inputs[i].weight -= weight_delta;
+		input_value = (i != 0) ? node->inputs[i].node->output : 1;
+		node->inputs[i].delta_weight = learning_rate * input_value * node->gradient + momentum * node->inputs[i].delta_weight;
+		node->inputs[i].weight += node->inputs[i].delta_weight;
 	}
 }

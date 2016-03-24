@@ -10,7 +10,7 @@ typedef double (nn_transfer_fn) (double value);
 
 struct nn_input {
 	double weight;
-	double prev_weight;
+	double delta_weight;
 	struct nn_node *node;
 };
 
@@ -22,7 +22,7 @@ struct nn_output {
 struct nn_node {
 	int id;
 	double output;
-	double ndelta;
+	double gradient;
 	double input_total;
 	nn_transfer_fn *transfer_fn;
 	nn_transfer_fn *transfer_derivative_fn;
@@ -37,6 +37,7 @@ struct nn_node {
 struct nn_array_network {
 	int nodes_per_layer;
 	int layers;
+	double error;
 	double momentum;
 	double learning_rate;
 	long training_cases;
@@ -56,9 +57,9 @@ int nn_node_alloc(int id, int nr_inputs, int nr_out_nodes, nn_transfer_fn *tfn, 
 void nn_node_init_bias(struct nn_node *node, double weight_ul, double weight_ll);
 void nn_node_init_connection(struct nn_node *in_node, struct nn_node *out_node, double weight_ul, double weight_ll);
 void nn_node_process(struct nn_node *node);
-void nn_node_calculate_output_ndelta(struct nn_node *node, double expected);
-void nn_node_calculate_ndelta(struct nn_node *node);
-void nn_node_recalculate_weights(struct nn_node *node, double lr, double momentum);
+void nn_node_calculate_output_gradient(struct nn_node *node, double expected);
+void nn_node_calculate_gradient(struct nn_node *node);
+void nn_node_recalculate_weights(struct nn_node *node, double learning_rate, double momentum);
 
 //array network functions
 void nn_array_network_free(struct nn_array_network *nn);

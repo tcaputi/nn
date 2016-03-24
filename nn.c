@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <stdio.h>
+#include <math.h>
 #include "nn.h"
 
 void nn_array_network_free(struct nn_array_network *nn){
@@ -76,6 +77,7 @@ int nn_array_network_alloc(int npl, int layers, nn_transfer_fn *tfn, nn_transfer
 	printf("finishing setting up struct\n");
 	nn->nodes_per_layer = npl;
 	nn->layers = layers;
+	nn->error = 0;
 	nn->momentum = momentum;
 	nn->learning_rate = learning_rate;
 	nn->training_cases = 0;
@@ -100,6 +102,10 @@ error:
 	return ret;
 }
 
+void nn_array_network_calculate_error(struct nn_array_network *nn, double expected){
+	nn->error = sqrt((expected - nn->out_node->output) * (expected - nn->out_node->output));
+}
+
 void nn_array_network_process(struct nn_array_network *nn, double *values, double expected, nn_mode_t mode){
 	int i;
 	
@@ -108,26 +114,30 @@ void nn_array_network_process(struct nn_array_network *nn, double *values, doubl
 		nn->nodes[i]->output = values[i];
 	}
 	
-	//printf("processing hidden nodes\n");
+	//printf("processing nodes\n");
 	for(i = nn->nodes_per_layer; i < nn->nodes_per_layer * nn->layers; i++){
 		nn_node_process(nn->nodes[i]);
 	}
-	
-	//printf("initializing output node\n");
 	nn_node_process(nn->out_node);
 	
+	//printf("calculating network error\n");
+	nn_array_network_calculate_error(nn, expected);
+	
 	if(mode == NN_MODE_TRAIN){
-		//printf("back-propogating error\n");
-		nn_node_calculate_output_ndelta(nn->out_node, expected);
-		nn_node_recalculate_weights(nn->out_node, nn->learning_rate, nn->momentum);
+		//printf("calculating output gradient\n");
+		nn_node_calculate_output_gradient(nn->out_node, expected);
 		
+		//printf("calculating hidden gradients\n");
 		for(i = nn->nodes_per_layer * nn->layers - 1; i >= nn->nodes_per_layer; i--){
-			//printf("\tcalculating error error\n");
-			nn_node_calculate_ndelta(nn->nodes[i]);
-			
-			//printf("\trecalculating weights\n");
+			nn_node_calculate_gradient(nn->nodes[i]);
+		}
+		
+		//printf("calculating new weights\n");
+		nn_node_recalculate_weights(nn->out_node, nn->learning_rate, nn->momentum);
+		for(i = nn->nodes_per_layer * nn->layers - 1; i >= nn->nodes_per_layer; i--){
 			nn_node_recalculate_weights(nn->nodes[i], nn->learning_rate, nn->momentum);
 		}
+		
 		nn->training_cases++;
 	}
 }
