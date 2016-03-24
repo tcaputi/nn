@@ -91,7 +91,7 @@ int main(int argc, char **argv){
 	
 	for(i = 0; i < mnist->train->nr_images; i++){
 		for(j = 0; j < MNIST_IMAGE_SIZE; j++){
-			input[j] = mnist->train->images[i].data[j] / 255.0;
+			input[j] = (mnist->train->images[i].data[j] > 0) ? 1.0 : 0;
 		}
 		
 		for(j = 0; j < 10; j++){
@@ -115,7 +115,7 @@ int main(int argc, char **argv){
 	
 	for(i = 0; i < mnist->test->nr_images; i++){
 		for(j = 0; j < MNIST_IMAGE_SIZE; j++){
-			input[j] = mnist->test->images[i].data[j] / 255.0;
+			input[j] = (mnist->test->images[i].data[j] > 0) ? 1.0 : 0;
 		}
 		
 		for(j = 0; j < 10; j++){
