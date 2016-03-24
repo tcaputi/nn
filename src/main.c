@@ -34,7 +34,7 @@ int main(int argc, char **argv){
 	double input[NR_INPUTS];
 	double expected[NR_OUTPUTS];
 	
-	printf("allocating array network\n");
+	printf("initializing array network\n");
 	ret = nn_array_network_init(&nn, NR_INPUTS, NR_OUTPUTS, HIDDEN_NPL, HIDDEN_LAYERS, sigmoid, sigmoid_derivative, LEARNING_RATE, MOMENTUM, weight_limit, -weight_limit);
 	if(ret) goto error;
 	

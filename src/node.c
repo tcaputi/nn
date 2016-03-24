@@ -119,6 +119,7 @@ void nn_node_process(struct nn_node *node){
 
 void nn_node_calculate_output_gradient(struct nn_node *node, double expected){
 	node->gradient = (expected - node->output) * node->transfer_derivative_fn(node->output);
+	//printf("expected = %f, output = %f, f' = %f -> gradient = %f\n", expected, node->output, node->transfer_derivative_fn(node->output), node->gradient);
 }
 
 void nn_node_calculate_hidden_gradient(struct nn_node *node){

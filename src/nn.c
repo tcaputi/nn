@@ -99,6 +99,7 @@ int nn_array_network_init(struct nn_array_network *nn, unsigned nr_inputs, unsig
 		}
 	}
 	
+	/*
 	for(i = 0; i < nr_inputs; i++){
 		nn_node_printf(&nn->input_nodes[i]);
 	}
@@ -110,6 +111,7 @@ int nn_array_network_init(struct nn_array_network *nn, unsigned nr_inputs, unsig
 	for(i = 0; i < nr_outputs; i++){
 		nn_node_printf(&nn->output_nodes[i]);
 	}
+	*/
 	
 	printf("finishing setting up struct\n");
 	nn->nr_inputs = nr_inputs;
