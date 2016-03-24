@@ -153,7 +153,7 @@ error:
 }
 
 int load_all_mnist_data(char *dir, struct mnist **mnist_out){
-	int ret, trainl_fd, traini_fd, testl_fd, testi_fd;
+	int ret, trainl_fd = 0, traini_fd = 0, testl_fd = 0, testi_fd = 0;
 	struct mnist *mnist = NULL;
 	struct mnist_data *train = NULL, *test = NULL;
 	char path[PATH_MAX];
