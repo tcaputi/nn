@@ -53,8 +53,22 @@ static void print_top3(struct nn_node *output_nodes, unsigned nr_outputs){
 	printf("\t%d : %f\n", tidx, third);
 }
 
+static int get_best_output(struct nn_node *output_nodes, unsigned nr_outputs){
+	int i, fidx;
+	double first = 0;
+	
+	for(i = 0; i < nr_outputs; i++){
+		if(output_nodes[i].output > first){
+			first = output_nodes[i].output;
+			fidx = i;
+		}
+	}
+	
+	return fidx;
+}
+
 int main(int argc, char **argv){
-	int ret, i, j;
+	int ret, i, j, score = 0;
 	struct nn_array_network nn;
 	struct mnist *mnist = NULL;
 	double weight_limit = sqrt(((double)6) / ((double)(2 * (HIDDEN_NPL + 1))));
@@ -105,23 +119,29 @@ int main(int argc, char **argv){
 		}
 		
 		for(j = 0; j < 10; j++){
-			if(j == mnist->train->labels[i]) expected[j] = 1.0;
+			if(j == mnist->test->labels[i]) expected[j] = 1.0;
 			else expected[j] = 0.0;
 		}
 		
 		nn_array_network_process(&nn, input, expected, NN_MODE_TRAIN);
+		if(get_best_output(nn.output_nodes, NR_OUTPUTS) == mnist->test->labels[i]) score++;
 		
 		if(i % PRINT_GENERTION == 0){
 			printf("PREDICTION: generation %d\n", i);
-			printf("\texpected = %u\n", mnist->train->labels[i]);
+			printf("\texpected = %u\n", mnist->test->labels[i]);
 			print_top3(nn.output_nodes, NR_OUTPUTS);
 			printf("\terror (RMS) = %f\n", nn.error);
+			printf("\tscore = %d / %d\n", score, i);
 			printf("\n");
-			mnist_image_print(&mnist->train->images[i]);
+			mnist_image_print(&mnist->test->images[i]);
 			printf("\n");
 			printf("---------------------------------------\n");
 		}
 	}
+	
+	printf("\n");
+	printf("FINAL SCORE = %d / %d\n", score, i);
+	printf("\n");
 	
 	nn_array_network_destroy(&nn);
 	mnist_free(mnist);
