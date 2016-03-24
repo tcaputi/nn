@@ -9,19 +9,19 @@ void nn_node_printf(struct nn_node *node){
 		printf("node: NULL\n");
 		return;
 	}
-	
+		
 	printf("node: %d\n", node->id);
 	printf("\toutput: %f\n", node->output);
 	printf("\tgradient: %f\n", node->gradient);
 	printf("\tinput_total: %f\n", node->input_total);
 	
-	printf("\tinputs: %d\n", node->nr_inputs);
+	printf("\tinputs: %d of %d\n", node->nr_inputs, node->total_inputs);
 	if(node->nr_inputs != 0) printf("\t\tbias: weight = %f, delta_weight = %f\n", node->inputs[0].weight, node->inputs[0].delta_weight);
 	for(i = 1; i < node->nr_inputs; i++){
 		printf("\t\tid = %d: weight = %f, delta_weight = %f\n", node->inputs[i].node->id, node->inputs[i].weight, node->inputs[i].delta_weight);
 	}
 	
-	printf("\toutputs: %d\n", node->nr_out_nodes);
+	printf("\toutputs: %d of %d\n", node->nr_out_nodes, node->total_outputs);
 	for(i = 0; i < node->nr_out_nodes; i++){
 		printf("\t\tid = %d\n", node->out_nodes[i].node->id);
 	}
@@ -29,23 +29,15 @@ void nn_node_printf(struct nn_node *node){
 	printf("\n");
 }
 
-void nn_node_free(struct nn_node *node){
-	free(node->inputs);
-	free(node->out_nodes);
-	free(node);
+void nn_node_destroy(struct nn_node *node){
+	if(node->inputs) free(node->inputs);
+	if(node->out_nodes) free(node->out_nodes);
 }
 
-int nn_node_alloc(int id, int nr_inputs, int nr_out_nodes, nn_transfer_fn *tfn, nn_transfer_fn *tdfn, struct nn_node **node_out){
+int nn_node_init(struct nn_node *node, int id, int nr_inputs, int nr_out_nodes, nn_transfer_fn *tfn, nn_transfer_fn *tdfn){
 	int ret;
-	struct nn_node *node = NULL;
 	struct nn_input *inputs = NULL;
 	struct nn_output *out_nodes = NULL;
-	
-	node = calloc(1, sizeof(struct nn_node));
-	if(!node){
-		ret = ENOMEM;
-		goto error;
-	}
 	
 	if(nr_inputs != 0){
 		inputs = malloc(nr_inputs * sizeof(struct nn_input));
@@ -76,16 +68,13 @@ int nn_node_alloc(int id, int nr_inputs, int nr_out_nodes, nn_transfer_fn *tfn, 
 	node->inputs = inputs;
 	node->out_nodes = out_nodes;
 	
-	*node_out = node;
 	return 0;
 	
 error:
 	fprintf(stderr, "failed to allocate node\n");
 	if(inputs) free(inputs);
 	if(out_nodes) free(out_nodes);
-	if(node) free(node);
 	
-	*node_out = NULL;
 	return ret;
 }
 
@@ -132,7 +121,7 @@ void nn_node_calculate_output_gradient(struct nn_node *node, double expected){
 	node->gradient = (expected - node->output) * node->transfer_derivative_fn(node->output);
 }
 
-void nn_node_calculate_gradient(struct nn_node *node){
+void nn_node_calculate_hidden_gradient(struct nn_node *node){
 	int i;
 	double sum = 0;
 	

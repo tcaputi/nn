@@ -3,139 +3,176 @@
 #include <math.h>
 #include "nn.h"
 
-void nn_array_network_free(struct nn_array_network *nn){
+void nn_array_network_destroy(struct nn_array_network *nn){
 	int i;
 	
-	for(i = 0; i < nn->nodes_per_layer * nn->layers; i++){
-		nn_node_free(nn->nodes[i]);
+	for(i = 0; i < nn->nr_inputs; i++){
+		nn_node_destroy(&nn->input_nodes[i]);
 	}
+	free(nn->input_nodes);
 	
-	nn_node_free(nn->out_node);
-	free(nn);
+	for(i = 0; i < nn->hidden_npl * nn->hidden_layers; i++){
+		nn_node_destroy(&nn->hidden_nodes[i]);
+	}
+	free(nn->hidden_nodes);
+	
+	for(i = 0; i < nn->nr_outputs; i++){
+		nn_node_destroy(&nn->output_nodes[i]);
+	}
+	free(nn->output_nodes);
 }
 
-int nn_array_network_alloc(int npl, int layers, nn_transfer_fn *tfn, nn_transfer_fn *tdfn, double learning_rate, double momentum, double weight_ul, double weight_ll, struct nn_array_network **nn_out){
-	int ret, i, j, k;
-	struct nn_array_network *nn = NULL;
-	struct nn_node **nodes = NULL;
-	struct nn_node *out_node = NULL;
+int nn_array_network_init(struct nn_array_network *nn, unsigned nr_inputs, unsigned nr_outputs, unsigned npl, unsigned hidden_layers, nn_transfer_fn *tfn, nn_transfer_fn *tdfn, double learning_rate, double momentum, double weight_ul, double weight_ll){
+	int ret, i, j, k, id = 0;
+	int nr_out_nodes, nr_in_nodes;
 	
-	printf("allocating array network struct\n");
-	nn = malloc(sizeof(struct nn_array_network));
-	if(!nn){
-		ret = ENOMEM;
-		goto error;
-	}
-	
-	printf("allocating nodes array\n");
-	nodes = calloc(1, npl * layers * sizeof(struct nn_node *));
-	if(!nodes){
-		ret = ENOMEM;
-		goto error;
-	}
-	
-	//input nodes have no inputs annd no tranfer function
 	printf("allocating input nodes\n");
-	for(i = 0; i < npl; i++){
-		ret = nn_node_alloc(i, 0, npl, NULL, NULL, &nodes[i]);
-		if(ret) goto error;
+	nn->input_nodes = calloc(1, nr_inputs * sizeof(struct nn_node));
+	if(!nn->input_nodes){
+		ret = ENOMEM;
+		goto error;
 	}
 	
-	//allocate all hidden nodes
 	printf("allocating hidden nodes\n");
-	for(i = npl; i < npl * layers; i++){
-		ret = nn_node_alloc(i, npl + 1, npl, tfn, tdfn, &nodes[i]);
+	nn->hidden_nodes = calloc(1, npl * hidden_layers * sizeof(struct nn_node));
+	if(!nn->hidden_nodes){
+		ret = ENOMEM;
+		goto error;
+	}
+	
+	printf("allocating output nodes\n");
+	nn->output_nodes = calloc(1, nr_outputs * sizeof(struct nn_node));
+	if(!nn->output_nodes){
+		ret = ENOMEM;
+		goto error;
+	}
+	
+	printf("initalizing input nodes\n");
+	for(i = 0; i < nr_inputs; i++){
+		ret = nn_node_init(&nn->input_nodes[i], id++, 0, npl, NULL, NULL);
 		if(ret) goto error;
 	}
 	
-	//allocate output node
-	printf("allocating output node\n");
-	ret = nn_node_alloc(1000000, npl + 1, 0, tfn, tdfn, &out_node);
-	if(ret) goto error;
-	
-	//initialize all inputs to hidden nodes (input nodes don't have any)
-	printf("initializing inputs\n");
-	for(i = 1; i < layers; i++){
+	printf("initalizing hidden nodes\n");
+	for(i = 0; i < hidden_layers; i++){
 		for(j = 0; j < npl; j++){
-			nn_node_init_bias(nodes[(i * npl) + j], weight_ul, weight_ll);
+			if(i == 0) nr_in_nodes = nr_inputs + 1;
+			else nr_in_nodes = npl + 1;
+			
+			if(i == hidden_layers - 1) nr_out_nodes = nr_outputs;
+			else nr_out_nodes = npl;
+			
+			ret = nn_node_init(&nn->hidden_nodes[i * npl + j], id++, nr_in_nodes, nr_out_nodes, tfn, tdfn);
+			if(ret) goto error;
+		}
+	}
+	
+	printf("initalizing output nodes\n");
+	for(i = 0; i < nr_outputs; i++){
+		ret = nn_node_init(&nn->output_nodes[i], id++, npl + 1, 0, tfn, tdfn);
+		if(ret) goto error;
+	}
+	
+	printf("initializing first hidden layer connections\n");
+	for(j = 0; j < npl; j++){
+		nn_node_init_bias(&nn->hidden_nodes[j], weight_ul, weight_ll);
+		for(k = 0; k < nr_inputs; k++){
+			nn_node_init_connection(&nn->input_nodes[k], &nn->hidden_nodes[j], weight_ul, weight_ll);
+		}
+	}
+	
+	printf("initializing other hidden layer connections\n");
+	for(i = 1; i < hidden_layers; i++){
+		for(j = 0; j < npl; j++){
+			nn_node_init_bias(&nn->hidden_nodes[i * npl + j], weight_ul, weight_ll);
 			for(k = 0; k < npl; k++){
-				nn_node_init_connection(nodes[((i - 1) * npl) + k], nodes[(i * npl) + j], weight_ul, weight_ll);
+				nn_node_init_connection(&nn->hidden_nodes[(i - 1) * npl + k], &nn->hidden_nodes[i * npl + j], weight_ul, weight_ll);
 			}
 		}
 	}
 	
-	nn_node_init_bias(out_node, weight_ul, weight_ll);
-	for(k = 0; k < npl; k++){
-		nn_node_init_connection(nodes[((layers - 1) * npl) + k], out_node, weight_ul, weight_ll);
+	printf("initializing output layer connections\n");
+	for(j = 0; j < nr_outputs; j++){
+		nn_node_init_bias(&nn->output_nodes[j], weight_ul, weight_ll);
+		for(k = 0; k < npl; k++){
+			nn_node_init_connection(&nn->hidden_nodes[(hidden_layers - 1) * npl + k], &nn->output_nodes[j], weight_ul, weight_ll);
+		}
 	}
 	
-	for(i = 0; i < npl * layers; i++){
-		nn_node_printf(nodes[i]);
+	for(i = 0; i < nr_inputs; i++){
+		nn_node_printf(&nn->input_nodes[i]);
 	}
-	nn_node_printf(out_node);
+	
+	for(i = 0; i < npl * hidden_layers; i++){
+		nn_node_printf(&nn->hidden_nodes[i]);
+	}
+	
+	for(i = 0; i < nr_outputs; i++){
+		nn_node_printf(&nn->output_nodes[i]);
+	}
 	
 	printf("finishing setting up struct\n");
-	nn->nodes_per_layer = npl;
-	nn->layers = layers;
+	nn->nr_inputs = nr_inputs;
+	nn->nr_outputs = nr_outputs;
+	nn->hidden_layers = hidden_layers;
+	nn->hidden_npl = npl;
 	nn->error = 0;
 	nn->momentum = momentum;
 	nn->learning_rate = learning_rate;
 	nn->training_cases = 0;
-	nn->nodes = nodes;
-	nn->out_node = out_node;
 	
-	*nn_out = nn;
 	return 0;
 
 error:
-	fprintf(stderr, "failed to allocate array network\n");
-	if(nn) free(nn);
+	fprintf(stderr, "failed to initialize array network\n");
+	nn_array_network_destroy(nn);
 	
-	for(i = 0; i < npl * layers; i++){
-		if(nodes[i]) nn_node_free(nodes[i]);
-	}
-	
-	if(nodes) free(nodes);
-	if(out_node) nn_node_free(out_node);
-	
-	*nn_out = NULL;
 	return ret;
 }
 
-void nn_array_network_calculate_error(struct nn_array_network *nn, double expected){
-	nn->error = sqrt((expected - nn->out_node->output) * (expected - nn->out_node->output));
+void nn_array_network_calculate_error(struct nn_array_network *nn, double *expected){
+	int i;
+	double total = 0;
+	
+	for(i = 0; i < nn->nr_outputs; i++){
+		total += (expected[i] - nn->output_nodes[i].output) * (expected[i] - nn->output_nodes[i].output);
+	}
+	
+	nn->error = sqrt(total / nn->nr_outputs);
 }
 
-void nn_array_network_process(struct nn_array_network *nn, double *values, double expected, nn_mode_t mode){
+void nn_array_network_process(struct nn_array_network *nn, double *values, double *expected, nn_mode_t mode){
 	int i;
 	
-	//printf("initializing inputs\n");
-	for(i = 0; i < nn->nodes_per_layer; i++){
-		nn->nodes[i]->output = values[i];
+	for(i = 0; i < nn->nr_inputs; i++){
+		nn->input_nodes[i].output = values[i];
 	}
 	
-	//printf("processing nodes\n");
-	for(i = nn->nodes_per_layer; i < nn->nodes_per_layer * nn->layers; i++){
-		nn_node_process(nn->nodes[i]);
+	for(i = 0; i < nn->hidden_layers * nn->hidden_npl; i++){
+		nn_node_process(&nn->hidden_nodes[i]);
 	}
-	nn_node_process(nn->out_node);
 	
-	//printf("calculating network error\n");
+	for(i = 0; i < nn->nr_outputs; i++){
+		nn_node_process(&nn->output_nodes[i]);
+	}
+	
 	nn_array_network_calculate_error(nn, expected);
 	
 	if(mode == NN_MODE_TRAIN){
-		//printf("calculating output gradient\n");
-		nn_node_calculate_output_gradient(nn->out_node, expected);
-		
-		//printf("calculating hidden gradients\n");
-		for(i = nn->nodes_per_layer * nn->layers - 1; i >= nn->nodes_per_layer; i--){
-			nn_node_calculate_gradient(nn->nodes[i]);
+		for(i = nn->nr_outputs - 1; i >= 0; i--){
+			nn_node_calculate_output_gradient(&nn->output_nodes[i], expected[i]);
 		}
 		
-		//printf("calculating new weights\n");
-		nn_node_recalculate_weights(nn->out_node, nn->learning_rate, nn->momentum);
-		for(i = nn->nodes_per_layer * nn->layers - 1; i >= nn->nodes_per_layer; i--){
-			nn_node_recalculate_weights(nn->nodes[i], nn->learning_rate, nn->momentum);
+		for(i = nn->hidden_npl * nn->hidden_layers - 1; i >= 0; i--){
+			nn_node_calculate_hidden_gradient(&nn->hidden_nodes[i]);
+		}
+		
+		for(i = nn->nr_outputs - 1; i >= 0; i--){
+			nn_node_recalculate_weights(&nn->output_nodes[i], nn->learning_rate, nn->momentum);
+		}
+		
+		for(i = nn->hidden_npl * nn->hidden_layers - 1; i >= 0; i--){
+			nn_node_recalculate_weights(&nn->hidden_nodes[i], nn->learning_rate, nn->momentum);
 		}
 		
 		nn->training_cases++;

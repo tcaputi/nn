@@ -35,14 +35,17 @@ struct nn_node {
 };
 
 struct nn_array_network {
-	int nodes_per_layer;
-	int layers;
+	unsigned nr_inputs;
+	unsigned nr_outputs;
+	unsigned hidden_layers;
+	unsigned hidden_npl;
 	double error;
 	double momentum;
 	double learning_rate;
 	long training_cases;
-	struct nn_node **nodes;
-	struct nn_node *out_node;
+	struct nn_node *input_nodes;
+	struct nn_node *hidden_nodes;
+	struct nn_node *output_nodes;
 };
 
 typedef enum nn_mode {
@@ -52,18 +55,19 @@ typedef enum nn_mode {
 
 //node functions
 void nn_node_printf(struct nn_node *node);
-void nn_node_free(struct nn_node *node);
-int nn_node_alloc(int id, int nr_inputs, int nr_out_nodes, nn_transfer_fn *tfn, nn_transfer_fn *tdfn, struct nn_node **node_out);
+void nn_node_destroy(struct nn_node *node);
+int nn_node_init(struct nn_node *node, int id, int nr_inputs, int nr_out_nodes, nn_transfer_fn *tfn, nn_transfer_fn *tdfn);
 void nn_node_init_bias(struct nn_node *node, double weight_ul, double weight_ll);
 void nn_node_init_connection(struct nn_node *in_node, struct nn_node *out_node, double weight_ul, double weight_ll);
 void nn_node_process(struct nn_node *node);
 void nn_node_calculate_output_gradient(struct nn_node *node, double expected);
-void nn_node_calculate_gradient(struct nn_node *node);
+void nn_node_calculate_hidden_gradient(struct nn_node *node);
 void nn_node_recalculate_weights(struct nn_node *node, double learning_rate, double momentum);
 
 //array network functions
-void nn_array_network_free(struct nn_array_network *nn);
-int nn_array_network_alloc(int npl, int layers, nn_transfer_fn *tfn, nn_transfer_fn *tdfn, double learning_rate, double momentum, double weight_ul, double weight_ll, struct nn_array_network **nn_out);
-void nn_array_network_process(struct nn_array_network *nn, double *values, double expected, nn_mode_t mode);
+void nn_array_network_destroy(struct nn_array_network *nn);
+int nn_array_network_init(struct nn_array_network *nn, unsigned nr_inputs, unsigned nr_outputs, unsigned npl, unsigned hidden_layers, nn_transfer_fn *tfn, nn_transfer_fn *tdfn, double learning_rate, double momentum, double weight_ul, double weight_ll);
+void nn_array_network_calculate_error(struct nn_array_network *nn, double *expected);
+void nn_array_network_process(struct nn_array_network *nn, double *values, double *expected, nn_mode_t mode);
 
 #endif
