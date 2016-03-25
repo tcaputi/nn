@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <stdio.h>
-#include "nn.h"
+
+#include <nn.h>
 
 void nn_node_printf(struct nn_node *node){
 	int i;
@@ -34,7 +35,7 @@ void nn_node_destroy(struct nn_node *node){
 	if(node->out_nodes) free(node->out_nodes);
 }
 
-int nn_node_init(struct nn_node *node, int id, int nr_inputs, int nr_out_nodes, nn_transfer_fn *tfn, nn_transfer_fn *tdfn){
+int nn_node_init(struct nn_node *node, int id, int nr_inputs, int nr_out_nodes, struct nn_node_ops *ops){
 	int ret;
 	struct nn_input *inputs = NULL;
 	struct nn_output *out_nodes = NULL;
@@ -61,10 +62,9 @@ int nn_node_init(struct nn_node *node, int id, int nr_inputs, int nr_out_nodes, 
 	node->input_total = 0;
 	node->nr_inputs = 0;
 	node->nr_out_nodes = 0;
-	node->transfer_fn = tfn;
-	node->transfer_derivative_fn = tdfn;
 	node->total_inputs = nr_inputs;
 	node->total_outputs = nr_out_nodes;
+	node->ops = ops;
 	node->inputs = inputs;
 	node->out_nodes = out_nodes;
 	
@@ -114,31 +114,5 @@ void nn_node_process(struct nn_node *node){
 		node->input_total += node->inputs[i].weight * node->inputs[i].node->output;
 	}
 	
-	node->output = node->transfer_fn(node->input_total);
-}
-
-void nn_node_calculate_output_gradient(struct nn_node *node, double expected){
-	node->gradient = (expected - node->output) * node->transfer_derivative_fn(node->output);
-	//printf("expected = %f, output = %f, f' = %f -> gradient = %f\n", expected, node->output, node->transfer_derivative_fn(node->output), node->gradient);
-}
-
-void nn_node_calculate_hidden_gradient(struct nn_node *node){
-	int i;
-	double sum = 0;
-	
-	for(i = 0; i < node->nr_out_nodes; i++){
-		sum += node->out_nodes[i].input->weight * node->out_nodes[i].node->gradient;
-	}
-	node->gradient = sum * node->transfer_derivative_fn(node->output);
-}
-
-void nn_node_recalculate_weights(struct nn_node *node, double learning_rate, double momentum){
-	int i;
-	double input_value;
-	
-	for(i = 0; i < node->nr_inputs; i++){
-		input_value = (i != 0) ? node->inputs[i].node->output : 1;
-		node->inputs[i].delta_weight = learning_rate * input_value * node->gradient + momentum * node->inputs[i].delta_weight;
-		node->inputs[i].weight += node->inputs[i].delta_weight;
-	}
+	node->output = node->ops->transfer_fn(node->input_total);
 }

@@ -2,26 +2,20 @@
 #include <stdlib.h>
 #include <math.h>
 #include <errno.h>
+
+#include <nn.h>
+#include <backprop.h>
 #include "mnist.h"
-#include "nn.h"
 
 #define NR_INPUTS MNIST_IMAGE_SIZE
 #define HIDDEN_NPL 300
 #define HIDDEN_LAYERS 1
 #define NR_OUTPUTS 10
 
-#define LEARNING_RATE 0.025
+#define LEARNING_RATE 0.0025
 #define MOMENTUM 0.2
 
 #define PRINT_GENERTION 1000
-
-static double sigmoid(double value){
-	return tanh(value);
-}
-
-static double sigmoid_derivative(double value){
-	return 1.0 - value * value;
-}
 
 static void print_top3(struct nn_node *output_nodes, unsigned nr_outputs){
 	int i;
@@ -67,6 +61,17 @@ static int get_best_output(struct nn_node *output_nodes, unsigned nr_outputs){
 	return fidx;
 }
 
+static double calculate_error(struct nn_array_network *nn, double *expected){
+	int i;
+	double total = 0;
+	
+	for(i = 0; i < nn->nr_outputs; i++){
+		total += (expected[i] - nn->output_nodes[i].output) * (expected[i] - nn->output_nodes[i].output);
+	}
+	
+	return sqrt(total / nn->nr_outputs);
+}
+
 int main(int argc, char **argv){
 	int ret, i, j, score = 0;
 	struct nn_array_network nn;
@@ -82,7 +87,7 @@ int main(int argc, char **argv){
 	}
 	
 	printf("initializing array network\n");
-	ret = nn_array_network_init(&nn, NR_INPUTS, NR_OUTPUTS, HIDDEN_NPL, HIDDEN_LAYERS, sigmoid, sigmoid_derivative, LEARNING_RATE, MOMENTUM, weight_limit, -weight_limit);
+	ret = nn_array_network_init(&nn, NR_INPUTS, NR_OUTPUTS, HIDDEN_NPL, HIDDEN_LAYERS, &backprop_node_ops, calculate_error, LEARNING_RATE, MOMENTUM, weight_limit, -weight_limit);
 	if(ret) goto error;
 	
 	printf("loading mnist data\n");

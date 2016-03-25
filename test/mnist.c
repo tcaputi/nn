@@ -9,6 +9,7 @@
 #include <unistd.h>
 #include <stdio.h>
 #include <linux/limits.h>
+
 #include "mnist.h"
 
 struct mnist_label_header {

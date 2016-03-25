@@ -1,7 +1,8 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <math.h>
-#include "nn.h"
+
+#include <nn.h>
 
 void nn_array_network_destroy(struct nn_array_network *nn){
 	int i;
@@ -22,7 +23,7 @@ void nn_array_network_destroy(struct nn_array_network *nn){
 	free(nn->output_nodes);
 }
 
-int nn_array_network_init(struct nn_array_network *nn, unsigned nr_inputs, unsigned nr_outputs, unsigned npl, unsigned hidden_layers, nn_transfer_fn *tfn, nn_transfer_fn *tdfn, double learning_rate, double momentum, double weight_ul, double weight_ll){
+int nn_array_network_init(struct nn_array_network *nn, unsigned nr_inputs, unsigned nr_outputs, unsigned npl, unsigned hidden_layers, struct nn_node_ops *ops, nn_calculate_error error_fn, double learning_rate, double momentum, double weight_ul, double weight_ll){
 	int ret, i, j, k, id = 0;
 	int nr_out_nodes, nr_in_nodes;
 	
@@ -49,7 +50,7 @@ int nn_array_network_init(struct nn_array_network *nn, unsigned nr_inputs, unsig
 	
 	printf("initalizing input nodes\n");
 	for(i = 0; i < nr_inputs; i++){
-		ret = nn_node_init(&nn->input_nodes[i], id++, 0, npl, NULL, NULL);
+		ret = nn_node_init(&nn->input_nodes[i], id++, 0, npl, NULL);
 		if(ret) goto error;
 	}
 	
@@ -62,14 +63,14 @@ int nn_array_network_init(struct nn_array_network *nn, unsigned nr_inputs, unsig
 			if(i == hidden_layers - 1) nr_out_nodes = nr_outputs;
 			else nr_out_nodes = npl;
 			
-			ret = nn_node_init(&nn->hidden_nodes[i * npl + j], id++, nr_in_nodes, nr_out_nodes, tfn, tdfn);
+			ret = nn_node_init(&nn->hidden_nodes[i * npl + j], id++, nr_in_nodes, nr_out_nodes, &nn->node_ops);
 			if(ret) goto error;
 		}
 	}
 	
 	printf("initalizing output nodes\n");
 	for(i = 0; i < nr_outputs; i++){
-		ret = nn_node_init(&nn->output_nodes[i], id++, npl + 1, 0, tfn, tdfn);
+		ret = nn_node_init(&nn->output_nodes[i], id++, npl + 1, 0, &nn->node_ops);
 		if(ret) goto error;
 	}
 	
@@ -99,20 +100,6 @@ int nn_array_network_init(struct nn_array_network *nn, unsigned nr_inputs, unsig
 		}
 	}
 	
-	/*
-	for(i = 0; i < nr_inputs; i++){
-		nn_node_printf(&nn->input_nodes[i]);
-	}
-	
-	for(i = 0; i < npl * hidden_layers; i++){
-		nn_node_printf(&nn->hidden_nodes[i]);
-	}
-	
-	for(i = 0; i < nr_outputs; i++){
-		nn_node_printf(&nn->output_nodes[i]);
-	}
-	*/
-	
 	printf("finishing setting up struct\n");
 	nn->nr_inputs = nr_inputs;
 	nn->nr_outputs = nr_outputs;
@@ -122,6 +109,8 @@ int nn_array_network_init(struct nn_array_network *nn, unsigned nr_inputs, unsig
 	nn->momentum = momentum;
 	nn->learning_rate = learning_rate;
 	nn->training_cases = 0;
+	nn->node_ops = *ops;
+	nn->error_fn = error_fn;
 	
 	return 0;
 
@@ -130,17 +119,6 @@ error:
 	nn_array_network_destroy(nn);
 	
 	return ret;
-}
-
-void nn_array_network_calculate_error(struct nn_array_network *nn, double *expected){
-	int i;
-	double total = 0;
-	
-	for(i = 0; i < nn->nr_outputs; i++){
-		total += (expected[i] - nn->output_nodes[i].output) * (expected[i] - nn->output_nodes[i].output);
-	}
-	
-	nn->error = sqrt(total / nn->nr_outputs);
 }
 
 void nn_array_network_process(struct nn_array_network *nn, double *values, double *expected, nn_mode_t mode){
@@ -158,23 +136,23 @@ void nn_array_network_process(struct nn_array_network *nn, double *values, doubl
 		nn_node_process(&nn->output_nodes[i]);
 	}
 	
-	nn_array_network_calculate_error(nn, expected);
+	nn->error = nn->error_fn(nn, expected);
 	
 	if(mode == NN_MODE_TRAIN){
 		for(i = nn->nr_outputs - 1; i >= 0; i--){
-			nn_node_calculate_output_gradient(&nn->output_nodes[i], expected[i]);
+			nn->output_nodes[i].gradient = nn->node_ops.output_gradient_fn(&nn->output_nodes[i], expected[i]);
 		}
 		
 		for(i = nn->hidden_npl * nn->hidden_layers - 1; i >= 0; i--){
-			nn_node_calculate_hidden_gradient(&nn->hidden_nodes[i]);
+			nn->hidden_nodes[i].gradient = nn->node_ops.hidden_gradient_fn(&nn->hidden_nodes[i]);
 		}
 		
 		for(i = nn->nr_outputs - 1; i >= 0; i--){
-			nn_node_recalculate_weights(&nn->output_nodes[i], nn->learning_rate, nn->momentum);
+			nn->node_ops.recalculate_weights_fn(&nn->output_nodes[i], nn);
 		}
 		
 		for(i = nn->hidden_npl * nn->hidden_layers - 1; i >= 0; i--){
-			nn_node_recalculate_weights(&nn->hidden_nodes[i], nn->learning_rate, nn->momentum);
+			nn->node_ops.recalculate_weights_fn(&nn->hidden_nodes[i], nn);
 		}
 		
 		nn->training_cases++;
