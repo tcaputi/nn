@@ -33,16 +33,16 @@ struct nn_output {
 
 struct nn_node {
 	int id;
-	double output;
+	double value;
 	double gradient;
 	double input_total;
 	int total_inputs;
 	int total_outputs;
 	int nr_inputs; //no inputs -> input node
-	int nr_out_nodes; //no out_nodes -> output node
+	int nr_outputs; //no outputs -> output node
 	struct nn_node_ops *ops;
 	struct nn_input *inputs;
-	struct nn_output *out_nodes;
+	struct nn_output *outputs;
 };
 
 struct nn_array_network;

@@ -17,17 +17,17 @@ double bp_sigmoid_derivative(double value){
 }
 
 double bp_calculate_output_gradient(struct nn_node *node, double expected){
-	return (expected - node->output) * node->ops->transfer_derivative_fn(node->output);
+	return (expected - node->value) * node->ops->transfer_derivative_fn(node->value);
 }
 
 double bp_calculate_hidden_gradient(struct nn_node *node){
 	int i;
 	double sum = 0;
 	
-	for(i = 0; i < node->nr_out_nodes; i++){
-		sum += node->out_nodes[i].input->weight * node->out_nodes[i].node->gradient;
+	for(i = 0; i < node->nr_outputs; i++){
+		sum += node->outputs[i].input->weight * node->outputs[i].node->gradient;
 	}
-	return sum * node->ops->transfer_derivative_fn(node->output);
+	return sum * node->ops->transfer_derivative_fn(node->value);
 }
 
 void bp_recalculate_weights(struct nn_node *node, void *data){
@@ -36,7 +36,7 @@ void bp_recalculate_weights(struct nn_node *node, void *data){
 	double input_value;
 	
 	for(i = 0; i < node->nr_inputs; i++){
-		input_value = (i != 0) ? node->inputs[i].node->output : 1;
+		input_value = (i != 0) ? node->inputs[i].node->value : 1;
 		node->inputs[i].delta_weight = nn->learning_rate * input_value * node->gradient + nn->momentum * node->inputs[i].delta_weight;
 		node->inputs[i].weight += node->inputs[i].delta_weight;
 	}

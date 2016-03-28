@@ -26,7 +26,7 @@ static double calculate_error(struct nn_array_network *nn, double *expected){
 	double total = 0;
 	
 	for(i = 0; i < nn->nr_outputs; i++){
-		total += (expected[i] - nn->output_nodes[i].output) * (expected[i] - nn->output_nodes[i].output);
+		total += (expected[i] - nn->output_nodes[i].value) * (expected[i] - nn->output_nodes[i].value);
 	}
 	
 	return sqrt(total / nn->nr_outputs);
@@ -54,7 +54,7 @@ int main(int argc, char **argv){
 			printf("TRAINING: generation %d\n", i);
 			printf("\tinput = %f, %f\n", input[0], input[1]);
 			printf("\texpected = %f\n", expected[0]);
-			printf("\toutput = %f\n", nn.output_nodes[0].output);
+			printf("\toutput = %f\n", nn.output_nodes[0].value);
 			printf("\terror (RMS) = %f\n", nn.error);
 			printf("---------------------------------------\n");
 		}
@@ -70,7 +70,7 @@ int main(int argc, char **argv){
 		printf("PREDICTION: generation %d\n", i);
 		printf("\tinput = %f, %f\n", input[0], input[1]);
 		printf("\texpected = %f\n", expected[0]);
-		printf("\toutput = %f\n", nn.output_nodes[0].output);
+		printf("\toutput = %f\n", nn.output_nodes[0].value);
 		printf("\terror (RMS) = %f\n", nn.error);
 		printf("---------------------------------------\n");
 	}

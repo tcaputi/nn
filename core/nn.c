@@ -125,7 +125,7 @@ void nn_array_network_process(struct nn_array_network *nn, double *values, doubl
 	int i;
 	
 	for(i = 0; i < nn->nr_inputs; i++){
-		nn->input_nodes[i].output = values[i];
+		nn->input_nodes[i].value = values[i];
 	}
 	
 	for(i = 0; i < nn->hidden_layers * nn->hidden_npl; i++){

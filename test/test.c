@@ -23,20 +23,20 @@ static void print_top3(struct nn_node *output_nodes, unsigned nr_outputs){
 	double first = 0, second = 0, third = 0;
 	
 	for(i = 0; i < nr_outputs; i++){
-		if(output_nodes[i].output > first){
+		if(output_nodes[i].value > first){
 			third = second;
 			tidx = sidx;
 			second = first;
 			sidx = fidx;
-			first = output_nodes[i].output;
+			first = output_nodes[i].value;
 			fidx = i;
-		}else if(output_nodes[i].output > second){
+		}else if(output_nodes[i].value > second){
 			third = second;
 			tidx = sidx;
-			second = output_nodes[i].output;
+			second = output_nodes[i].value;
 			sidx = i;
-		}else if(output_nodes[i].output > third){
-			third = output_nodes[i].output;
+		}else if(output_nodes[i].value > third){
+			third = output_nodes[i].value;
 			tidx = i;
 		}
 	}
@@ -52,8 +52,8 @@ static int get_best_output(struct nn_node *output_nodes, unsigned nr_outputs){
 	double first = 0;
 	
 	for(i = 0; i < nr_outputs; i++){
-		if(output_nodes[i].output > first){
-			first = output_nodes[i].output;
+		if(output_nodes[i].value > first){
+			first = output_nodes[i].value;
 			fidx = i;
 		}
 	}
@@ -66,7 +66,7 @@ static double calculate_error(struct nn_array_network *nn, double *expected){
 	double total = 0;
 	
 	for(i = 0; i < nn->nr_outputs; i++){
-		total += (expected[i] - nn->output_nodes[i].output) * (expected[i] - nn->output_nodes[i].output);
+		total += (expected[i] - nn->output_nodes[i].value) * (expected[i] - nn->output_nodes[i].value);
 	}
 	
 	return sqrt(total / nn->nr_outputs);
